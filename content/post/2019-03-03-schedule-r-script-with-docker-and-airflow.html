@@ -1,0 +1,236 @@
+---
+title: How to schedule R script with Docker and Apache Airflow
+author: 'Yong Han'
+date: '2019-03-03'
+slug: schedule-r-script-with-docker-and-airflow
+categories: []
+tags: []
+---
+
+
+
+<p>As a data analyst, you may be required to send report as email at a regular basis. In R, you may use <a href="https://cran.r-project.org/web/packages/cronR/vignettes/cronR.html">cronR</a> to achieve this. It’s simple and easy to use. But today I will introduce <a href="https://github.com/apache/airflow">Apache Airflow</a> (written in python) to schedule R scripts as an alternative.</p>
+<p>We will use Apache Airflow to schedule a task to start a container to run your R scripts. Here is the steps:</p>
+<ul>
+<li>Run Apache Airflow in docker</li>
+<li>Prepare your R docker image</li>
+<li>Write the dag file (Python) and R script</li>
+</ul>
+<div id="run-apache-airflow-in-docker" class="section level3">
+<h3>Run Apache Airflow in docker</h3>
+<p>Apache Airflow is written in Python, so it is better to know a little Python. We will run Apache Airflow in docker in linux. So you will need <a href="https://www.docker.com/">docker</a> installed.</p>
+<p>I will use my custom Apache Airflow. It’s a <a href="https://github.com/shizidushu/docker-airflow/tree/1.10.2">forked repository</a> of puckel’s.</p>
+<p>You should build your custom image too. Because you will need to change the dockerfile. You can check <a href="https://github.com/shizidushu/docker-airflow/blob/1.10.2/Dockerfile">my dockerfile</a>.</p>
+<p>The key to allow Apache Airflow (which run as a container) to start a docker container is the following line</p>
+<pre><code>groupadd --gid 119 docker</code></pre>
+<p>I borrowed it from other’s dockerfile. Sorry, I didn’t remember the details. You should change the groud id of the docker file, it <code>119</code> in mine. Run <code>id</code> command and you will get it (you may see something like <code>119(docker)</code> ).</p>
+<p>After buiding your image, pull it and run Apache Airflow</p>
+<pre class="bash"><code>docker pull shizidushu/docker-airflow:1.10.2</code></pre>
+<p>Then you deploy Apache Airflow. I use docker swarm. Here is the yml file. I omnit some details and you should edit it according to your own need. You may need to read <a href="https://airflow.readthedocs.io/en/latest/">Apache Airflow’s document</a>.</p>
+<pre class="yml"><code>version: &quot;3.7&quot;
+services:
+  redis:
+    image: redis:5-alpine
+    ports:
+      - &quot;6379&quot;
+    networks:
+      - apache-airflow-overlay
+    command: redis-server
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 2
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+  
+  postgres:
+    image: postgres:9.6
+    environment:
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - ../persistent-data/airflow/pgdata:/var/lib/postgresql/data
+    networks:
+      - apache-airflow-overlay
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+
+  webserver:
+    image: shizidushu/docker-airflow:1.10.2
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - apache-airflow-overlay
+    environment:
+      - DOCKER_VOLUME_BASE=/home/airflow/airflow-in-docker/data_volume
+      - LOAD_EX=n
+      - AIRFLOW_HOME=/usr/local/airflow
+      - FERNET_KEY=E2XgDaOqfPVC51gE2XgDaOqfPVC51gE2XgDaOqfPVC51g
+      - EXECUTOR=Celery
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker
+      - ./dags:/usr/local/airflow/dags
+    ports:
+      - target: 8080
+        published: 8080
+        mode: host
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+    command: webserver
+
+  flower:
+    image: shizidushu/docker-airflow:1.10.2
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - apache-airflow-overlay
+    environment:
+      - DOCKER_VOLUME_BASE=/home/airflow/airflow-in-docker/data_volume
+      - LOAD_EX=n
+      - AIRFLOW_HOME=/usr/local/airflow
+      - FERNET_KEY=E2XgDaOqfPVC51gE2XgDaOqfPVC51gE2XgDaOqfPVC51g
+      - EXECUTOR=Celery
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker
+      - ./dags:/usr/local/airflow/dags
+    ports:
+      - target: 5555
+        published: 5555
+        mode: host
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints: [node.role == manager]
+    command: flower
+
+  scheduler:
+    image: shizidushu/docker-airflow:1.10.2
+    depends_on:
+      - postgres
+      - redis
+      - webserver
+    networks:
+      - apache-airflow-overlay
+    environment:
+      - DOCKER_VOLUME_BASE=/home/airflow/airflow-in-docker/data_volume
+      - LOAD_EX=n
+      - AIRFLOW_HOME=/usr/local/airflow
+      - FERNET_KEY=E2XgDaOqfPVC51gE2XgDaOqfPVC51gE2XgDaOqfPVC51g
+      - EXECUTOR=Celery
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker
+      - ./dags:/usr/local/airflow/dags
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints: [node.role == manager]
+    command: scheduler
+
+  worker:
+    image: shizidushu/docker-airflow:1.10.2
+    depends_on:
+      - postgres
+      - redis
+      - webserver
+      - scheduler
+    networks:
+      - apache-airflow-overlay
+    environment:
+      - DOCKER_VOLUME_BASE=/home/airflow/airflow-in-docker/data_volume
+      - LOAD_EX=n
+      - AIRFLOW_HOME=/usr/local/airflow
+      - FERNET_KEY=E2XgDaOqfPVC51gE2XgDaOqfPVC51gE2XgDaOqfPVC51g
+      - EXECUTOR=Celery
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker
+      - ./dags:/usr/local/airflow/dags
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+    command: worker
+
+networks:
+  apache-airflow-overlay:
+    driver: overlay
+    external: true</code></pre>
+<p>Notice I set an environment variable <code>DOCKER_VOLUME_BASE</code> which I use it to refer the location of my r script. You can omit it if you prefer.</p>
+<p>After deploy Apache Airflow, it is time to write the dag file which defines the schedule job. And you also need to prepare a R docker image to run your R script. I use a docker image based on <a href="https://hub.docker.com/r/rocker/r-ver">rocker/r-ver</a>.</p>
+<p>Here is an example of Dag file.</p>
+<pre class="python"><code>from airflow import DAG
+from airflow.operators.docker_operator import DockerOperator
+from datetime import datetime, timedelta
+import os
+
+
+default_args = {
+    &#39;owner&#39;: &#39;airflow&#39;,
+    &#39;depends_on_past&#39;: False,
+    &#39;start_date&#39;: datetime(2019, 1, 22, 1),
+    &#39;email_on_failure&#39;: True,
+    &#39;email_on_retry&#39;: True,
+    &#39;retries&#39;: 1,
+    &#39;retry_delay&#39;: timedelta(minutes=15),
+}
+
+
+dag = DAG(
+        dag_id =&#39;r-script&#39;,
+        default_args= default_args,
+        schedule_interval=&#39;5 1 * * *&#39;)
+        
+test = DockerOperator(
+        api_version=&#39;auto&#39;,
+        image=&#39;rocker/r-ver&#39;,
+        network_mode=&#39;bridge&#39;,
+        volumes=[os.path.join(os.environ[&#39;DOCKER_VOLUME_BASE&#39;], &#39;input&#39;, &#39;rscript&#39;) + &#39;:/root/rscript&#39;],
+        command=&#39;Rscript script.R -d &quot;{{ next_execution_date }}&quot;&#39;,
+        task_id=&#39;run-r-script&#39;,
+        working_dir = &#39;/root/rscript&#39;,
+        dag=dag)</code></pre>
+<p>The <code>next_execution_date</code> is a parameter passed to R script. Please check <a href="https://airflow.readthedocs.io/en/latest/">Apache Airflow’s document</a> for more.</p>
+<p>Here is an example of R script:</p>
+<pre class="r"><code>library(optparse)
+
+# parse arguments
+## refer to https://www.r-bloggers.com/passing-arguments-to-an-r-script-from-command-lines/
+option_list &lt;- list(
+  make_option(opt_str = c(&quot;-d&quot;, &quot;--date&quot;), type=&quot;character&quot;, help=&quot;Execution date&quot;)
+)
+opt_parser = OptionParser(option_list = option_list)
+opt = parse_args(opt_parser)
+# check parameter
+if (is.null(opt$date)) {
+  print_help(date)
+  stop(&quot;The next execution date must be provided!&quot;, call.=FALSE)
+}
+
+print(paste(&quot;The next execution date is&quot;, opt$date))</code></pre>
+</div>

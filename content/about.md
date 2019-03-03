@@ -1,0 +1,10 @@
+---
+title: About
+date: '2019-03-03'
+---
+
+This is Yong Han's page. I am now working as a data analyst of a small company of Shenzhen. I graduated in International Economies and Trade from Huanggang Normal University. After got out of school, I find there is no place for me. The daily work was so bored and I live in the past. One day I realized I like statistics a little. I started to read books about statistics in English since then. It's very hard for to learn stastics at the beginning because of my poor math skills. I hate calculation and doing math exercise and often make sally mistakes in the past math test. I slowly learn some statistics and tell myself to stick to study more after reading novels and viewing animations. I get to know LaTeX someday and try to learn it for fun. LaTeX is so hard and I only know a little about it till now. Then or meanwhile, I am interested in programming. I try to to Lisp/Scheme as read articles from web about SCIP and Lisp. I soon find Lisp is too hard for me. I gave up Lisp it after several failed learning tries. Someday I decided to learning R or Python and read a lot of debates about R/Python is better. Somehow I choose to learn R. (I have forgeten about why I choose R. Maybe because Python have two versions and is harder for me then?) 
+
+It's not easy to learn R and statistics. I read books, blog posts and take coursera R courses. Self learning is boring but interesting and sometimes I feel confused. I'm not sure about what to learn first and what to learn next. I ask questions in stackoverflow, github and rstudio community. A lot of friendly people answer my questions. Sometimes I read several beginning chapters and give up the rest chapters because it is so hard. And I have times that can't learn anything too. I gradually learn R and math in this way though. In 2018, I started to work as an data analyst and learn a lot in practice.
+
+I'll share my random thoughts and some experiences here.
