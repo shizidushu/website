@@ -2,6 +2,7 @@ baseurl = "/"
 languageCode = "en-us"
 title = "shizidushu"
 theme = "hugo-lithium"
+hasCJKLanguage = true
 googleAnalytics = ""
 disqusShortname = ""
 ignoreFiles = ["\\.Rmd$", "\\.Rmarkdown$", "_files$", "_cache$"]
@@ -32,10 +33,10 @@ ignoreFiles = ["\\.Rmd$", "\\.Rmarkdown$", "_files$", "_cache$"]
     MathJaxVersion = "2.7.5"
 
     # path to the favicon, under "static"
-    favicon = "favicon.ico"
+    favicon = "logo.jpg"
 
     [params.logo]
-    url = "logo.png"
+    url = "logo.jpg"
     width = 50
     height = 50
     alt = "Logo"
